@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Cache Memory Mapping Simulator"
+description = "An interactive educational simulator comparing direct, fully associative, and set-associative cache mapping with address breakdowns, LRU replacement, and step-by-step results."
+version = "1.0.0"
+id = "artifacts/cache-simulator"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24134
+
+[services.development]
+run = "pnpm --filter @workspace/cache-simulator run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/cache-simulator", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/cache-simulator/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24134"
+BASE_PATH = "/"
