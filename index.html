@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cache Memory Mapping Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --fg: #131728;
+      --card: #fffdf9;
+      --card-border: #d4ccb8;
+      --border: #d4ccb8;
+      --input: #565d70;
+      --primary: #192347;
+      --primary-fg: #fffdf9;
+      --muted: #e7e0d2;
+      --muted-fg: #4d546a;
+      --tag: #115e9e;
+      --tag-bg: #e1f0fa;
+      --idx: #b45309;
+      --idx-bg: #fef3c7;
+      --off: #9d174d;
+      --off-bg: #fce7f3;
+      --hit: #065f46;
+      --hit-bg: #d1fae5;
+      --miss: #991b1b;
+      --miss-bg: #fee2e2;
+      --m-direct: #c2410c;
+      --m-fully: #0f766e;
+      --m-set: #6d28d9;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--fg);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    header {
+      background-color: var(--primary);
+      color: var(--primary-fg);
+      border-bottom: 3px solid var(--fg);
+      padding: 1.5rem 1rem;
+    }
+
+    .container {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .badge-sub {
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      opacity: 0.85;
+      font-weight: 700;
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin: 0.25rem 0 0.5rem;
+    }
+
+    header p {
+      font-size: 1rem;
+      opacity: 0.9;
+      max-width: 650px;
+    }
+
+    main {
+      padding: 2rem 0 4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border: 2px solid var(--fg);
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: 4px 4px 0 var(--fg);
+    }
+
+    .grid-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+
+    label span {
+      font-weight: 400;
+      color: var(--muted-fg);
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 0.55rem 0.75rem;
+      border: 2px solid var(--input);
+      border-radius: 6px;
+      background: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--fg);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(25, 35, 71, 0.2);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-top: 1rem;
+    }
+
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.9rem;
+      border-radius: 6px;
+      padding: 0.55rem 1.1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: transform 0.1s, background-color 0.15s;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border: 2px solid var(--primary);
+    }
+
+    .btn-primary:hover {
+      background: #253366;
+    }
+
+    .btn-secondary {
+      background: var(--card);
+      color: var(--fg);
+      border: 2px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--muted);
+    }
+
+    /* Error alerts */
+    .alert-danger {
+      background: var(--miss-bg);
+      border: 2px solid var(--miss);
+      color: var(--miss);
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .alert-danger ul {
+      margin-left: 1.2rem;
+    }
+
+    /* Section Titles */
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Comparison Table */
+    .table-container {
+      overflow-x: auto;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      text-align: left;
+    }
+
+    th {
+      background: var(--muted);
+      padding: 0.6rem 0.8rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 0.6rem 0.8rem;
+      border-top: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tr:hover td {
+      background: rgba(0,0,0,0.02);
+    }
+
+    .best-tag {
+      background: var(--hit-bg);
+      color: var(--hit);
+      font-size: 0.7rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 700;
+      margin-left: 0.35rem;
+    }
+
+    /* Method Panel */
+    .method-card {
+      background: var(--card);
+      border: 2px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    }
+
+    .method-header {
+      padding: 0.85rem 1.25rem;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .method-header h3 {
+      font-size: 1.25rem;
+      font-weight: 800;
+    }
+
+    .method-header span {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+
+    .method-body {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* Bit Breakdown */
+    .bits-container {
+      display: flex;
+      width: 100%;
+      gap: 0.35rem;
+    }
+
+    .bit-part {
+      border-radius: 6px;
+      padding: 0.45rem 0.6rem;
+      text-align: center;
+      color: #fff;
+    }
+
+    .bit-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.9;
+    }
+
+    .bit-val {
+      font-size: 0.95rem;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .bit-count {
+      font-size: 0.7rem;
+      opacity: 0.85;
+    }
+
+    /* Stat grid */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .stat-box {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      background: rgba(255,255,255,0.7);
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-fg);
+      font-weight: 700;
+    }
+
+    .stat-val {
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    /* Step Player */
+    .step-player {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #faf7f2;
+      padding: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .step-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .step-btn-list {
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .step-btn {
+      min-width: 32px;
+      height: 32px;
+      padding: 0 0.4rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 5px;
+      border: 2px solid;
+      background: #fff;
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .step-btn.hit {
+      background: var(--hit-bg);
+      color: var(--hit);
+      border-color: rgba(6, 95, 70, 0.4);
+    }
+
+    .step-btn.miss {
+      background: var(--miss-bg);
+      color: var(--miss);
+      border-color: rgba(153, 27, 27, 0.4);
+    }
+
+    .step-btn.active {
+      outline: 2px solid var(--fg);
+      outline-offset: 1px;
+    }
+
+    .arrow-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      background: #fff;
+      border: 2px solid var(--border);
+      border-radius: 5px;
+    }
+
+    .arrow-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .step-narrative {
+      font-size: 0.9rem;
+    }
+
+    .badge-hit {
+      background: var(--hit-bg);
+      color: var(--hit);
+      font-weight: 800;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+
+    .badge-miss {
+      background: var(--miss-bg);
+      color: var(--miss);
+      font-weight: 800;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+
+    /* Cache Grid View */
+    .cache-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .cache-set-row {
+      display: flex;
+      gap: 0.4rem;
+      align-items: stretch;
+    }
+
+    .cache-set-label {
+      width: 55px;
+      flex-shrink: 0;
+      background: var(--idx);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: grid;
+      place-items: center;
+    }
+
+    .cache-ways-grid {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      gap: 0.4rem;
+      flex: 1;
+    }
+
+    .cache-line-box {
+      border: 2px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0.35rem 0.55rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .cache-line-box.active-hit {
+      border-color: var(--hit);
+      background: var(--hit-bg);
+    }
+
+    .cache-line-box.active-miss {
+      border-color: var(--miss);
+      background: var(--miss-bg);
+    }
+
+    .cache-line-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.65rem;
+      color: var(--muted-fg);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .cache-line-blk {
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin: 0.1rem 0;
+    }
+
+    .cache-line-tag {
+      font-size: 0.7rem;
+      color: var(--tag);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Vocabulary */
+    .vocab-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .vocab-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: 4px solid var(--primary);
+      border-radius: 8px;
+      padding: 0.85rem;
+    }
+
+    .vocab-term {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .vocab-def {
+      font-size: 0.85rem;
+      color: var(--muted-fg);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="container">
+      <p class="badge-sub">Computer Architecture Lab</p>
+      <h1>Cache Memory Mapping Simulator</h1>
+      <p>Simulate, analyze, and compare Direct-Mapped, Fully Associative, and Set-Associative caches bit-by-bit with LRU replacement.</p>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Inputs Panel -->
+    <div class="card">
+      <form id="sim-form">
+        <div class="grid-form">
+          <div>
+            <label for="addressBits">Address Width <span>(bits)</span></label>
+            <input type="number" id="addressBits" min="1" max="32" value="8" required>
+          </div>
+          <div>
+            <label for="cacheSize">Cache Size <span>(bytes)</span></label>
+            <input type="number" id="cacheSize" min="1" value="16" required>
+          </div>
+          <div>
+            <label for="blockSize">Block Size <span>(bytes)</span></label>
+            <input type="number" id="blockSize" min="1" value="4" required>
+          </div>
+          <div>
+            <label for="associativity">Set-Assoc. Ways</label>
+            <select id="associativity">
+              <option value="1">1-way (Direct)</option>
+              <option value="2" selected>2-way</option>
+              <option value="4">4-way</option>
+              <option value="full">Full Associative</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label for="addresses">Address Sequence <span>(decimal, comma-separated)</span></label>
+          <textarea id="addresses" rows="2" placeholder="0, 4, 8, 0, 16, 0, 4, 20">0, 4, 8, 0, 16, 0, 4, 20</textarea>
+        </div>
+
+        <div id="error-box" class="alert-danger" style="display: none;">
+          <ul id="error-list"></ul>
+        </div>
+
+        <div class="btn-group">
+          <button type="submit" class="btn-primary">▶ Run Simulation</button>
+          <button type="button" id="btn-reset" class="btn-secondary">↺ Reset Example</button>
+          <button type="button" id="btn-clear" class="btn-secondary">⌫ Clear</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Comparison Table -->
+    <section id="section-comparison">
+      <h2>Side-by-Side Comparison</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Sets × Ways</th>
+              <th>Tag Bits</th>
+              <th>Index/Set Bits</th>
+              <th>Offset Bits</th>
+              <th>Hits</th>
+              <th>Misses</th>
+              <th>Hit Rate</th>
+            </tr>
+          </thead>
+          <tbody id="comparison-tbody"></tbody>
+        </table>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--muted-fg); margin-top: 0.5rem;">
+        Direct mapping is simplest but conflicts when different blocks share an index. Fully associative eliminates conflict misses via exhaustive tag matching. Set associative balances hardware complexity and hit rates.
+      </p>
+    </section>
+
+    <!-- Method Panels Container -->
+    <div id="panels-container"></div>
+
+    <!-- Vocabulary Section -->
+    <section>
+      <h2>Vocabulary & Concepts</h2>
+      <div class="vocab-grid">
+        <div class="vocab-card" style="border-top-color: var(--tag);">
+          <div class="vocab-term" style="color: var(--tag);">Tag</div>
+          <div class="vocab-def">Upper address bits stored alongside the cache line to verify whether it holds the requested memory block.</div>
+        </div>
+        <div class="vocab-card" style="border-top-color: var(--idx);">
+          <div class="vocab-term" style="color: var(--idx);">Index / Set</div>
+          <div class="vocab-def">Middle address bits that select the specific cache line (direct-mapped) or set of ways (set-associative).</div>
+        </div>
+        <div class="vocab-card" style="border-top-color: var(--off);">
+          <div class="vocab-term" style="color: var(--off);">Offset</div>
+          <div class="vocab-def">Lowest address bits that pinpoint the exact byte inside the fetched block. Offset never affects hit or miss.</div>
+        </div>
+        <div class="vocab-card" style="border-top-color: var(--hit);">
+          <div class="vocab-term" style="color: var(--hit);">Hit</div>
+          <div class="vocab-def">The requested address block is already present in the designated set with a valid matching tag.</div>
+        </div>
+        <div class="vocab-card" style="border-top-color: var(--miss);">
+          <div class="vocab-term" style="color: var(--miss);">Miss (LRU)</div>
+          <div class="vocab-def">Block not in cache. It is fetched from main memory, evicting the Least Recently Used line if the set is full.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer style="border-top: 1px solid var(--border); padding: 1.5rem 0; font-size: 0.8rem; color: var(--muted-fg); text-align: center;">
+    Cache Memory Mapping Simulator &bull; Single-file self-contained application
+  </footer>
+
+  <script>
+    // --- Helper Functions ---
+    function binary(val, bits) {
+      if (bits === 0) return '—';
+      return val.toString(2).padStart(bits, '0');
+    }
+
+    function isPowerOfTwo(val) {
+      return Number.isSafeInteger(val) && val > 0 && Number.isInteger(Math.log2(val));
+    }
+
+    function validateInputs(input) {
+      const errors = [];
+      const bitsValid = Number.isInteger(input.addressBits) && input.addressBits >= 1 && input.addressBits <= 32;
+      if (!bitsValid) errors.push('Address width must be an integer between 1 and 32.');
+      const cacheValid = isPowerOfTwo(input.cacheSize);
+      const blockValid = isPowerOfTwo(input.blockSize);
+      if (!cacheValid) errors.push('Cache size must be a positive power of two (e.g., 2, 4, 8, 16, 32, 64...).');
+      if (!blockValid) errors.push('Block size must be a positive power of two (e.g., 1, 2, 4, 8, 16...).');
+      if (cacheValid && blockValid) {
+        if (input.blockSize > input.cacheSize) errors.push('Block size cannot exceed Cache size.');
+        const lines = input.cacheSize / input.blockSize;
+        if (lines > 256) errors.push('Use at most 256 cache lines to keep visualization responsive.');
+        if (input.associativity !== 'full' && Number(input.associativity) > lines) {
+          errors.push('Associativity ways cannot exceed the total number of cache lines (' + lines + ').');
+        }
+      }
+      if (bitsValid && cacheValid && input.cacheSize > (2 ** input.addressBits)) {
+        errors.push('Cache size cannot exceed the total addressable memory space (2^' + input.addressBits + ' bytes).');
+      }
+      if (!input.addresses.trim()) {
+        errors.push('Enter at least one decimal memory address.');
+      } else {
+        const tokens = input.addresses.split(',').map(s => s.trim()).filter(Boolean);
+        if (tokens.length === 0) errors.push('Enter at least one decimal memory address.');
+        if (tokens.length > 512) errors.push('Enter at most 512 addresses per run.');
+        if (tokens.some(t => !/^\d+$/.test(t))) {
+          errors.push('Use comma-separated nonnegative decimal integers with no invalid symbols.');
+        } else if (bitsValid) {
+          const maxAddr = (2 ** input.addressBits) - 1;
+          if (tokens.some(t => Number(t) > maxAddr)) {
+            errors.push('Addresses must be between 0 and ' + maxAddr + ' for ' + input.addressBits + '-bit memory.');
+          }
+        }
+      }
+      return errors;
+    }
+
+    // --- Simulation Core ---
+    function simulateMethod(input, method) {
+      const lines = input.cacheSize / input.blockSize;
+      const ways = method === 'direct' ? 1 : (method === 'fully' || input.associativity === 'full') ? lines : Number(input.associativity);
+      const sets = lines / ways;
+      const indexBits = Math.log2(sets);
+      const offsetBits = Math.log2(input.blockSize);
+      const tagBits = input.addressBits - indexBits - offsetBits;
+
+      const cache = Array.from({ length: lines }, (_, line) => ({
+        line,
+        set: Math.floor(line / ways),
+        way: line % ways,
+        block: null,
+        tag: null,
+        lastUsed: null
+      }));
+
+      let hits = 0;
+      const tokens = input.addresses.split(',').map(s => s.trim()).filter(Boolean);
+      const steps = tokens.map((tok, pos) => {
+        const address = Number(tok);
+        const block = Math.floor(address / input.blockSize);
+        const index = block % sets;
+        const tag = Math.floor(block / sets);
+        const offset = address % input.blockSize;
+
+        const setCandidates = cache.slice(index * ways, (index + 1) * ways);
+        let selected = setCandidates.find(l => l.block === block);
+        const hit = selected !== undefined;
+        let evicted = null;
+
+        if (hit) {
+          hits++;
+        } else {
+          selected = setCandidates.find(l => l.block === null) ||
+            setCandidates.reduce((oldest, l) => ((l.lastUsed ?? -1) < (oldest.lastUsed ?? -1) ? l : oldest));
+          evicted = selected.block;
+          selected.block = block;
+          selected.tag = tag;
+        }
+
+        selected.lastUsed = pos + 1;
+
+        return {
+          step: pos + 1,
+          address,
+          binaryAddress: binary(address, input.addressBits),
+          block,
+          tag,
+          index,
+          offset,
+          tagBinary: binary(tag, tagBits),
+          indexBinary: binary(index, indexBits),
+          offsetBinary: binary(offset, offsetBits),
+          hit,
+          line: selected.line,
+          evicted,
+          cacheSnapshot: cache.map(l => ({ ...l }))
+        };
+      });
+
+      const misses = steps.length - hits;
+      return {
+        method,
+        name: method === 'direct' ? 'Direct Mapping' : method === 'fully' ? 'Fully Associative Mapping' : 'Set-Associative Mapping',
+        ways, sets, lines, tagBits, indexBits, offsetBits,
+        addressBits: input.addressBits,
+        blockSize: input.blockSize,
+        cacheSize: input.cacheSize,
+        hits, misses,
+        hitRate: steps.length ? (hits / steps.length * 100) : 0,
+        missRate: steps.length ? (misses / steps.length * 100) : 0,
+        steps,
+        finalCache: cache.map(l => ({ ...l })),
+        selectedStepIndex: 0
+      };
+    }
+
+    // --- State & Rendering ---
+    let simulationResults = [];
+
+    const METHOD_COLORS = {
+      direct: 'var(--m-direct)',
+      fully: 'var(--m-fully)',
+      set: 'var(--m-set)'
+    };
+
+    function renderComparisonTable() {
+      const tbody = document.getElementById('comparison-tbody');
+      tbody.innerHTML = '';
+      const bestRate = Math.max(...simulationResults.map(r => r.hitRate));
+
+      simulationResults.forEach(r => {
+        const tr = document.createElement('tr');
+        const color = METHOD_COLORS[r.method];
+        tr.innerHTML = `
+          <td style="font-weight: 800; color: ${color};">${r.name}</td>
+          <td class="mono">${r.sets} × ${r.ways}</td>
+          <td class="mono">${r.tagBits}</td>
+          <td class="mono">${r.indexBits}</td>
+          <td class="mono">${r.offsetBits}</td>
+          <td class="mono">${r.hits}</td>
+          <td class="mono">${r.misses}</td>
+          <td class="mono" style="font-weight: 700;">
+            ${r.hitRate.toFixed(1)}%${r.hitRate === bestRate ? '<span class="best-tag">best</span>' : ''}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderMethodPanels() {
+      const container = document.getElementById('panels-container');
+      container.innerHTML = '';
+
+      simulationResults.forEach((r, methodIdx) => {
+        const card = document.createElement('div');
+        card.className = 'method-card';
+        card.style.borderColor = METHOD_COLORS[r.method];
+
+        const step = r.steps[r.selectedStepIndex] || null;
+        const idxLabel = r.method === 'direct' ? 'Index' : 'Set';
+        const color = METHOD_COLORS[r.method];
+
+        // Panel header
+        let html = `
+          <div class="method-header" style="background: ${color};">
+            <h3>${r.name}</h3>
+            <span class="mono">${r.sets} set${r.sets > 1 ? 's' : ''} × ${r.ways} way${r.ways > 1 ? 's' : ''} = ${r.lines} lines</span>
+          </div>
+          <div class="method-body">
+            <!-- Bit breakdown -->
+            <div>
+              <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.4rem;">Address Bits (${r.addressBits} total)</h4>
+              <div class="bits-container">
+                <div class="bit-part" style="background: var(--tag); flex: ${Math.max(r.tagBits, 1.4)};">
+                  <div class="bit-label">Tag</div>
+                  <div class="bit-val mono">${step ? step.tagBinary : '—'}</div>
+                  <div class="bit-count">${r.tagBits} bit${r.tagBits === 1 ? '' : 's'}</div>
+                </div>
+                <div class="bit-part" style="background: var(--idx); flex: ${Math.max(r.indexBits, 1.4)};">
+                  <div class="bit-label">${idxLabel}</div>
+                  <div class="bit-val mono">${step ? step.indexBinary : '—'}</div>
+                  <div class="bit-count">${r.indexBits} bit${r.indexBits === 1 ? '' : 's'}</div>
+                </div>
+                <div class="bit-part" style="background: var(--off); flex: ${Math.max(r.offsetBits, 1.4)};">
+                  <div class="bit-label">Offset</div>
+                  <div class="bit-val mono">${step ? step.offsetBinary : '—'}</div>
+                  <div class="bit-count">${r.offsetBits} bit${r.offsetBits === 1 ? '' : 's'}</div>
+                </div>
+              </div>
+              <p style="font-size: 0.75rem; color: var(--muted-fg); margin-top: 0.35rem;">
+                ${step ? `Showing access #${step.step}: decimal ${step.address}.` : ''} Cache ${r.cacheSize}B, Block ${r.blockSize}B.
+              </p>
+            </div>
+
+            <!-- Stats -->
+            <div class="stat-grid">
+              <div class="stat-box">
+                <div class="stat-label">Hits</div>
+                <div class="stat-val mono">${r.hits}</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Misses</div>
+                <div class="stat-val mono">${r.misses}</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Hit Rate</div>
+                <div class="stat-val mono" style="color: var(--hit);">${r.hitRate.toFixed(1)}%</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Miss Rate</div>
+                <div class="stat-val mono" style="color: var(--miss);">${r.missRate.toFixed(1)}%</div>
+              </div>
+            </div>
+        `;
+
+        // Step player
+        if (step) {
+          html += `
+            <div class="step-player">
+              <div class="step-controls">
+                <button type="button" class="arrow-btn" ${r.selectedStepIndex === 0 ? 'disabled' : ''} onclick="changeStep(${methodIdx}, ${r.selectedStepIndex - 1})">◀</button>
+                <div class="step-btn-list">
+                  ${r.steps.map((s, idx) => `
+                    <button type="button" class="step-btn mono ${s.hit ? 'hit' : 'miss'} ${idx === r.selectedStepIndex ? 'active' : ''}" onclick="changeStep(${methodIdx}, ${idx})">${s.step}</button>
+                  `).join('')}
+                </div>
+                <button type="button" class="arrow-btn" ${r.selectedStepIndex >= r.steps.length - 1 ? 'disabled' : ''} onclick="changeStep(${methodIdx}, ${r.selectedStepIndex + 1})">▶</button>
+              </div>
+
+              <div class="step-narrative">
+                <strong>Access #${step.step}:</strong> Address <span class="mono" style="font-weight: 700;">${step.address}</span>
+                (Tag: <span class="mono">${step.tagBinary}</span>, ${idxLabel}: <span class="mono">${step.indexBinary}</span>, Offset: <span class="mono">${step.offsetBinary}</span>)
+                &rarr; <span class="${step.hit ? 'badge-hit' : 'badge-miss'}">${step.hit ? 'HIT' : 'MISS'}</span>
+                ${!step.hit && step.evicted !== null ? `(evicts block <span class="mono">${step.evicted}</span>)` : ''}
+              </div>
+
+              <!-- Cache view grid -->
+              <div class="cache-grid">
+                ${renderCacheVisualizer(r, step.cacheSnapshot, step.line, step.hit)}
+              </div>
+            </div>
+          `;
+        }
+
+        // Access steps table
+        html += `
+          <div>
+            <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.4rem;">Access Log & Cache Transitions</h4>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Addr</th>
+                    <th>Binary</th>
+                    <th style="color: var(--tag);">Tag</th>
+                    <th style="color: var(--idx);">${idxLabel}</th>
+                    <th style="color: var(--off);">Offset</th>
+                    <th>Result</th>
+                    <th>Line</th>
+                    <th>Evicted</th>
+                    <th>Cache Contents (Line: Block)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${r.steps.map((s, idx) => `
+                    <tr style="cursor: pointer; ${idx === r.selectedStepIndex ? 'background: #fff6e5;' : ''}" onclick="changeStep(${methodIdx}, ${idx})">
+                      <td class="mono">${s.step}</td>
+                      <td class="mono font-bold">${s.address}</td>
+                      <td class="mono">${s.binaryAddress}</td>
+                      <td class="mono" style="color: var(--tag);">${s.tagBinary} (${s.tag})</td>
+                      <td class="mono" style="color: var(--idx);">${s.indexBinary} (${s.index})</td>
+                      <td class="mono" style="color: var(--off);">${s.offsetBinary}</td>
+                      <td><span class="${s.hit ? 'badge-hit' : 'badge-miss'}">${s.hit ? 'HIT' : 'MISS'}</span></td>
+                      <td class="mono">${s.line}</td>
+                      <td class="mono">${s.evicted !== null ? s.evicted : '—'}</td>
+                      <td>
+                        <div style="display: flex; gap: 0.25rem;">
+                          ${s.cacheSnapshot.map(cl => `
+                            <span class="mono" style="font-size: 0.7rem; border-radius: 3px; padding: 0.1rem 0.3rem; border: 1px solid ${cl.line === s.line ? 'var(--fg)' : 'var(--border)'}; background: ${cl.line === s.line ? '#fff' : 'var(--muted)'}; font-weight: ${cl.line === s.line ? '700' : '400'};">
+                              ${cl.line}:${cl.block !== null ? cl.block : '—'}
+                            </span>
+                          `).join('')}
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Final cache table -->
+          <div>
+            <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.4rem;">Final Cache Contents</h4>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Line</th>
+                    <th>${idxLabel}</th>
+                    <th>Way</th>
+                    <th>Block</th>
+                    <th style="color: var(--tag);">Tag</th>
+                    <th>Last Used (Access #)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${r.finalCache.map(cl => `
+                    <tr>
+                      <td class="mono">${cl.line}</td>
+                      <td class="mono">${cl.set}</td>
+                      <td class="mono">${cl.way}</td>
+                      <td class="mono font-bold">${cl.block !== null ? cl.block : '—'}</td>
+                      <td class="mono" style="color: var(--tag);">${cl.tag !== null ? binary(cl.tag, r.tagBits) : '—'}</td>
+                      <td class="mono">${cl.lastUsed !== null ? cl.lastUsed : '—'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+
+        html += `</div>`;
+        card.innerHTML = html;
+        container.appendChild(card);
+      });
+    }
+
+    function renderCacheVisualizer(result, cacheLines, activeLine, hit) {
+      const setsMap = [];
+      cacheLines.forEach(l => {
+        (setsMap[l.set] ||= []).push(l);
+      });
+      const showSet = result.ways > 1 || result.method !== 'direct';
+
+      return setsMap.map((ways, setIdx) => `
+        <div class="cache-set-row">
+          ${showSet && result.sets > 1 ? `<div class="cache-set-label">Set ${setIdx}</div>` : ''}
+          <div class="cache-ways-grid">
+            ${ways.map(l => {
+              const isActive = l.line === activeLine;
+              const isEmpty = l.block === null;
+              let toneClass = '';
+              if (isActive) {
+                toneClass = hit ? 'active-hit' : 'active-miss';
+              }
+              return `
+                <div class="cache-line-box ${toneClass}">
+                  <div class="cache-line-top">
+                    <span>Line ${l.line}</span>
+                    ${isActive ? `<span style="font-weight: 800;">${hit ? 'HIT' : 'FILL'}</span>` : ''}
+                  </div>
+                  <div class="cache-line-blk mono">${isEmpty ? '—' : `Block ${l.block}`}</div>
+                  <div class="cache-line-tag mono">${isEmpty ? 'empty' : `tag ${binary(l.tag, result.tagBits)}`}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function changeStep(methodIdx, stepIdx) {
+      if (simulationResults[methodIdx] && simulationResults[methodIdx].steps[stepIdx]) {
+        simulationResults[methodIdx].selectedStepIndex = stepIdx;
+        renderMethodPanels();
+      }
+    }
+
+    function runSimulation() {
+      const errorBox = document.getElementById('error-box');
+      const errorList = document.getElementById('error-list');
+
+      const inputs = {
+        addressBits: Number(document.getElementById('addressBits').value),
+        cacheSize: Number(document.getElementById('cacheSize').value),
+        blockSize: Number(document.getElementById('blockSize').value),
+        associativity: document.getElementById('associativity').value,
+        addresses: document.getElementById('addresses').value
+      };
+
+      const errors = validateInputs(inputs);
+      if (errors.length > 0) {
+        errorList.innerHTML = errors.map(e => `<li>${e}</li>`).join('');
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      errorBox.style.display = 'none';
+
+      simulationResults = ['direct', 'fully', 'set'].map(m => simulateMethod(inputs, m));
+      renderComparisonTable();
+      renderMethodPanels();
+    }
+
+    // --- Event Listeners ---
+    document.getElementById('sim-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      runSimulation();
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', function() {
+      document.getElementById('addressBits').value = 8;
+      document.getElementById('cacheSize').value = 16;
+      document.getElementById('blockSize').value = 4;
+      document.getElementById('associativity').value = '2';
+      document.getElementById('addresses').value = '0, 4, 8, 0, 16, 0, 4, 20';
+      runSimulation();
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', function() {
+      document.getElementById('addresses').value = '';
+      document.getElementById('comparison-tbody').innerHTML = '';
+      document.getElementById('panels-container').innerHTML = '';
+    });
+
+    // Auto-run on initial page load
+    runSimulation();
+  </script>
+</body>
+</html>
